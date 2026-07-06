@@ -1,138 +1,459 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
-<meta charset="UTF-8">
-<title>Box Runner</title>
-<style>
-body{
-    margin:0;
-    overflow:hidden;
-    background:#87CEEB;
-}
-canvas{
-    display:block;
-    margin:auto;
-    background:white;
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D Pekarangan - Sampah Emoji</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: sans-serif; background-color: #000; user-select: none; }
+        #ui {
+            position: absolute; top: 10px; left: 10px; color: white;
+            background: rgba(0,0,0,0.7); padding: 12px; border-radius: 8px;
+            pointer-events: none; font-size: 14px; z-index: 10;
+        }
+        #time-ui {
+            position: absolute; top: 10px; right: 10px; color: white;
+            background: rgba(180, 40, 40, 0.8); padding: 12px; border-radius: 8px;
+            font-size: 16px; font-weight: bold; z-index: 10;
+        }
+        
+        /* Kontrol Kiri: Joystick */
+        #joystick-container {
+            position: absolute; bottom: 40px; left: 40px;
+            width: 110px; height: 110px; background: rgba(255,255,255,0.15);
+            border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; 
+            display: flex; justify-content: center; align-items: center; z-index: 15;
+            touch-action: none;
+        }
+        #joystick-handle {
+            width: 45px; height: 45px; background: rgba(255,255,255,0.7);
+            border-radius: 50%; position: absolute; touch-action: none;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+
+        /* Kontrol Kanan: Tombol Lompat */
+        #jump-btn {
+            position: absolute; bottom: 50px; right: 40px;
+            width: 70px; height: 70px; background: rgba(255,255,255,0.3);
+            border: 2px solid rgba(255,255,255,0.5); border-radius: 50%;
+            color: white; font-weight: bold; font-size: 14px;
+            display: flex; justify-content: center; align-items: center;
+            z-index: 15; text-shadow: 0 2px 4px rgba(0,0,0,0.6);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            cursor: pointer;
+        }
+        #jump-btn:active {
+            background: rgba(255,255,255,0.6);
+            transform: scale(0.95);
+        }
+
+        #overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); color: white; display: flex;
+            flex-direction: column; justify-content: center; align-items: center;
+            z-index: 20; text-align: center;
+        }
+        button.start {
+            padding: 10px 25px; font-size: 16px; background: #4CAF50; color: white;
+            border: none; border-radius: 5px; cursor: pointer; margin-top: 15px;
+        }
+    </style>
+    <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 </head>
 <body>
 
-<canvas id="game" width="800" height="300"></canvas>
+    <div id="ui">
+        <h3>Eco-Cleaner 3D</h3>
+        <p>Sampah Diambil: <span id="score">0</span></p>
+    </div>
 
-<script>
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
+    <div id="time-ui">Waktu: <span id="time">30</span>s</div>
 
-let player = {
-    x:50,
-    y:220,
-    w:30,
-    h:30,
-    vy:0,
-    jump:false
-};
+    <div id="joystick-container">
+        <div id="joystick-handle"></div>
+    </div>
 
-let gravity = 0.8;
-let obstacles = [];
-let score = 0;
+    <div id="jump-btn">LOMPAT</div>
 
-function spawn(){
-    obstacles.push({
-        x:800,
-        y:220,
-        w:20,
-        h:30
-    });
-}
+    <div id="overlay">
+        <h1 id="over-title">Eco-Cleaner 3D</h1>
+        <p id="over-desc">Gunakan Joystick untuk berjalan.<br>Sekarang sampahnya berupa berbagai macam Emoji!<br>Dekati emoji sampah lalu ketuk untuk memungutnya.</p>
+        <button class="start" id="start-btn" onclick="mulaiGame()">Mulai Game</button>
+    </div>
 
-setInterval(spawn,1500);
+    <script>
+        window.onload = function() {
+            // --- 1. SETUP ENGINE & SCENE ---
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87CEEB); 
 
-function jump(){
-    if(!player.jump){
-        player.vy = -14;
-        player.jump = true;
-    }
-}
+            const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
 
-// Keyboard
-document.addEventListener("keydown", (e) => {
-    if(e.code === "Space" || e.code === "ArrowUp"){
-        jump();
-    }
-});
+            const controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxPolarAngle = Math.PI / 2 - 0.05;
 
-// Touchscreen
-canvas.addEventListener("touchstart", (e) => {
-    e.preventDefault();
-    jump();
-}, { passive: false });
+            // --- 2. LIGHTING ---
+            scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+            const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            sunLight.position.set(10, 25, 10);
+            scene.add(sunLight);
 
-// Klik mouse (opsional)
-canvas.addEventListener("mousedown", jump);
+            // --- 3. REPLIKA MAP ---
+            const ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshStandardMaterial({ color: 0x4d5d33 }));
+            ground.rotation.x = -Math.PI / 2;
+            scene.add(ground);
 
-function update(){
+            const house = new THREE.Mesh(new THREE.BoxGeometry(5, 6, 10), new THREE.MeshStandardMaterial({ color: 0x707070 }));
+            house.position.set(-9, 3, 1);
+            scene.add(house);
 
-    player.vy+=gravity;
-    player.y+=player.vy;
+            const roof = new THREE.Mesh(new THREE.ConeGeometry(4.5, 2.5, 4), new THREE.MeshStandardMaterial({ color: 0x3d281d }));
+            roof.position.set(-9, 7.25, 1);
+            roof.rotation.y = Math.PI / 4;
+            scene.add(roof);
 
-    if(player.y>=220){
-        player.y=220;
-        player.vy=0;
-        player.jump=false;
-    }
+            function buatPohon(x, z, jenis) {
+                const grup = new THREE.Group();
+                const warnaKayuCoklat = 0x5c4033; 
 
-    for(let i=0;i<obstacles.length;i++){
-        obstacles[i].x-=6;
+                if (jenis === 'kelapa') {
+                    const b = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.3, 9), new THREE.MeshStandardMaterial({ color: warnaKayuCoklat }));
+                    b.position.y = 4.5; grup.add(b);
+                    for(let i=0; i<5; i++) {
+                        const d = new THREE.Mesh(new THREE.ConeGeometry(0.4, 3.5, 4), new THREE.MeshStandardMaterial({ color: 0x2e5c1e }));
+                        d.position.set(0, 9, 0); d.rotation.z = 1.1; d.rotation.y = i * (Math.PI * 2 / 5); grup.add(d);
+                    }
+                } else {
+                    const b = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 5.5), new THREE.MeshStandardMaterial({ color: warnaKayuCoklat }));
+                    b.position.y = 2.75; grup.add(b);
+                    const d = new THREE.Mesh(new THREE.SphereGeometry(2.2, 8, 8), new THREE.MeshStandardMaterial({ color: 0x194d19 }));
+                    d.position.y = 5.5; grup.add(d);
+                }
+                grup.position.set(x, 0, z); scene.add(grup);
+            }
+            
+            buatPohon(-5, -3, 'kelapa'); buatPohon(2, -6, 'kelapa');
+            buatPohon(-5, 8, 'kelapa'); buatPohon(7, 6, 'kelapa');
+            
+            for(let i=0; i<12; i++) {
+                let rx = Math.random() * 32 - 16;
+                let rz = Math.random() * 32 - 16;
+                if (!(rx < -5 && rx > -13 && rz < 7 && rz > -5)) {
+                    buatPohon(rx, rz, 'biasa');
+                }
+            }
 
-        if(
-            player.x<obstacles[i].x+obstacles[i].w &&
-            player.x+player.w>obstacles[i].x &&
-            player.y<obstacles[i].y+obstacles[i].h &&
-            player.y+player.h>obstacles[i].y
-        ){
-            score = 0;
-            player.y = 220;
-            player.vy = 0;
-            player.jump = false;
-            obstacles = [];
-        }
-    }
+            // --- 4. MODEL KARAKTER (KAKI PANJANG & TANGAN) ---
+            const playerGroup = new THREE.Group();
+            
+            const pivotKakiKiri = new THREE.Group(); pivotKakiKiri.position.set(-0.16, 0.7, 0);
+            const pivotKakiKanan = new THREE.Group(); pivotKakiKanan.position.set(0.16, 0.7, 0);
+            const pivotTanganKiri = new THREE.Group(); pivotTanganKiri.position.set(-0.42, 1.4, 0);
+            const pivotTanganKanan = new THREE.Group(); pivotTanganKanan.position.set(0.42, 1.4, 0);
 
-    obstacles=obstacles.filter(o=>o.x>-30);
-    score++;
-}
-function draw(){
-    ctx.clearRect(0,0,800,300);
+            const badan = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.9, 8), new THREE.MeshStandardMaterial({ color: 0x0055ff }));
+            badan.position.y = 1.15; playerGroup.add(badan);
+            
+            const kepala = new THREE.Mesh(new THREE.SphereGeometry(0.26, 8, 8), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+            kepala.position.y = 1.75; playerGroup.add(kepala);
 
-    // tanah
-    ctx.fillStyle="black";
-    ctx.fillRect(0,250,800,3);
+            const kakiGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.7, 6);
+            const kakiMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+            
+            const meshKakiKiri = new THREE.Mesh(kakiGeo, kakiMat); meshKakiKiri.position.y = -0.35;
+            pivotKakiKiri.add(meshKakiKiri); playerGroup.add(pivotKakiKiri);
 
-    // pemain
-    ctx.fillStyle="blue";
-    ctx.fillRect(player.x,player.y,player.w,player.h);
+            const meshKakiKanan = new THREE.Mesh(kakiGeo, kakiMat); meshKakiKanan.position.y = -0.35;
+            pivotKakiKanan.add(meshKakiKanan); playerGroup.add(pivotKakiKanan);
 
-    // rintangan
-    ctx.fillStyle="green";
-    obstacles.forEach(o=>{
-        ctx.fillRect(o.x,o.y,o.w,o.h);
-    });
+            const tanganGeo = new THREE.CylinderGeometry(0.07, 0.07, 0.6, 6);
+            const tanganMat = new THREE.MeshStandardMaterial({ color: 0x0055ff });
 
-    // skor
-    ctx.fillStyle="black";
-    ctx.font="20px Arial";
-    ctx.fillText("Score: "+score,650,30);
-}
+            const meshTanganKiri = new THREE.Mesh(tanganGeo, tanganMat); meshTanganKiri.position.y = -0.3;
+            pivotTanganKiri.add(meshTanganKiri); playerGroup.add(pivotTanganKiri);
 
-function loop(){
-    update();
-    draw();
-    requestAnimationFrame(loop);
-}
+            const meshTanganKanan = new THREE.Mesh(tanganGeo, tanganMat); meshTanganKanan.position.y = -0.3;
+            pivotTanganKanan.add(meshTanganKanan); playerGroup.add(pivotTanganKanan);
+            
+            playerGroup.position.set(0, 0, 4); 
+            scene.add(playerGroup);
 
-loop();
-</script>
+            camera.position.set(0, 6, 12);
+            controls.target.copy(playerGroup.position);
 
+            // --- 5. LOGIKA GAME & STRUKTUR EMOJI ---
+            let score = 0; let timeLeft = 30; let isGameRunning = false; let timerInterval;
+            const listSampah = [];
+
+            // Daftar variasi emoji sampah lingkungan / barang bekas
+            const kumpulanEmoji = ['🗑️', '🥤', '🍼', '🍌', '📦', '🍏', '🥫', '📰'];
+
+            // Fungsi untuk mengubah teks emoji menjadi material tekstur 2D gambar
+            function buatTeksturEmoji(emoji) {
+                const canvas = document.createElement('canvas');
+                canvas.width = 128;
+                canvas.height = 128;
+                const ctx = canvas.getContext('2d');
+                
+                ctx.font = '90px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(emoji, 64, 64);
+
+                const texture = new THREE.CanvasTexture(canvas);
+                return new THREE.SpriteMaterial({ map: texture, transparent: true });
+            }
+
+            function spawnSampah() {
+                // Pilih satu emoji acak
+                const emojiAcak = kumpulanEmoji[Math.floor(Math.random() * kumpulanEmoji.length)];
+                const matEmoji = buatTeksturEmoji(emojiAcak);
+                
+                // Menggunakan Sprite agar gambar emoji otomatis selalu menghadap layar kamera
+                const sprite = new THREE.Sprite(matEmoji);
+                
+                // Skala ukuran emoji di arena game
+                sprite.scale.set(0.65, 0.65, 1);
+                
+                // Letakkan posisi acak di atas tanah sedikit (Y: 0.35)
+                sprite.position.set(Math.random()*24 - 12, 0.35, Math.random()*24 - 12);
+                
+                scene.add(sprite); 
+                listSampah.push(sprite);
+            }
+
+            window.mulaiGame = function() {
+                score = 0; timeLeft = 30; isGameRunning = true;
+                playerGroup.position.set(0, 0, 4); 
+                vy = 0; isGrounded = true; 
+                document.getElementById('score').innerText = score;
+                document.getElementById('time').innerText = timeLeft;
+                document.getElementById('overlay').style.display = 'none';
+
+                listSampah.forEach(s => scene.remove(s)); listSampah.length = 0;
+                for(let i=0; i<10; i++) spawnSampah();
+
+                clearInterval(timerInterval);
+                timerInterval = setInterval(() => {
+                    timeLeft--;
+                    document.getElementById('time').innerText = timeLeft;
+                    if(timeLeft <= 0) {
+                        clearInterval(timerInterval); isGameRunning = false;
+                        document.getElementById('over-title').innerText = "Waktu Habis!";
+                        document.getElementById('over-desc').innerHTML = `Kamu mengumpulkan <b>${score}</b> sampah emoji!`;
+                        document.getElementById('overlay').style.display = 'flex';
+                    }
+                }, 1000);
+            };
+
+            // --- 6. LOGIKA JOYSTICK & LOMPAT ---
+            const input = { x: 0, z: 0 };
+            let vy = 0;              
+            let isGrounded = true;   
+            const gravitasi = -0.012; 
+            const kekuatanLompat = 0.24; 
+
+            const joyContainer = document.getElementById('joystick-container');
+            const joyHandle = document.getElementById('joystick-handle');
+            let joyActive = false;
+
+            function handleJoystick(e) {
+                if (!joyActive) return;
+                e.stopPropagation(); 
+                
+                const rect = joyContainer.getBoundingClientRect();
+                const touch = e.touches ? e.touches[0] : e;
+                let touchX = touch.clientX - rect.left - 55;
+                let touchY = touch.clientY - rect.top - 55;
+
+                const dist = Math.sqrt(touchX*touchX + touchY*touchY);
+                if (dist > 45) { touchX *= 45/dist; touchY *= 45/dist; }
+
+                joyHandle.style.transform = `translate(${touchX}px, ${touchY}px)`;
+                input.x = touchX / 45;
+                input.z = touchY / 45;
+            }
+
+            joyContainer.addEventListener('touchstart', (e) => { 
+                joyActive = true; controls.enabled = false; handleJoystick(e); 
+            }, {passive: false});
+
+            window.addEventListener('touchmove', handleJoystick, {passive: false});
+            window.addEventListener('touchend', () => { 
+                if(joyActive){
+                    joyActive = false; controls.enabled = true; 
+                    joyHandle.style.transform = 'translate(0px, 0px)'; 
+                    input.x = 0; input.z = 0;
+                }
+            });
+
+            function picuLompat() {
+                if (isGrounded && isGameRunning) {
+                    vy = kekuatanLompat;
+                    isGrounded = false;
+                }
+            }
+
+            document.getElementById('jump-btn').addEventListener('touchstart', (e) => {
+                e.stopPropagation(); picuLompat();
+            });
+            document.getElementById('jump-btn').addEventListener('click', picuLompat);
+
+            window.addEventListener('keydown', (e) => {
+                if (e.key === 'w') input.z = -1; if (e.key === 's') input.z = 1;
+                if (e.key === 'a') input.x = -1; if (e.key === 'd') input.x = 1;
+                if (e.key === ' ' || e.key === 'Spacebar') picuLompat();
+            });
+            window.addEventListener('keyup', (e) => {
+                if (['w', 's'].includes(e.key)) input.z = 0; if (['a', 'd'].includes(e.key)) input.x = 0;
+            });
+
+            // --- 7. AMBIL SAMPAH EMOJI (RAYCASTING) ---
+            const raycaster = new THREE.Raycaster();
+            const mouse = new THREE.Vector2();
+
+            function clickToClean(e) {
+                if (!isGameRunning || joyActive) return; 
+                let cX = e.clientX || (e.changedTouches && e.changedTouches[0].clientX);
+                let cY = e.clientY || (e.changedTouches && e.changedTouches[0].clientY);
+                if(cX === undefined || cY === undefined) return;
+
+                mouse.x = (cX / window.innerWidth) * 2 - 1;
+                mouse.y = -(cY / window.innerHeight) * 2 + 1;
+
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObjects(listSampah);
+
+                if (intersects.length > 0) {
+                    const target = intersects[0].object;
+                    const jarak = playerGroup.position.distanceTo(target.position);
+                    
+                    // Jarak maksimal mengambil sampah disesuaikan (2.5 unit)
+                    if (jarak < 2.5) {
+                        scene.remove(target);
+                        listSampah.splice(listSampah.indexOf(target), 1);
+                        score++; document.getElementById('score').innerText = score;
+                        setTimeout(spawnSampah, 500);
+                    }
+                }
+            }
+            renderer.domElement.addEventListener('click', clickToClean);
+            renderer.domElement.addEventListener('touchend', clickToClean);
+
+            // --- 8. GAME LOOP & ANIMASI ---
+            const kecepatan = 0.08;
+            let clockTime = 0; 
+
+            function gameLoop() {
+                requestAnimationFrame(gameLoop);
+
+                if (isGameRunning) {
+                    // --- GRAVITASI ---
+                    vy += gravitasi; 
+                    playerGroup.position.y += vy;
+
+                    if (playerGroup.position.y <= 0) {
+                        playerGroup.position.y = 0;
+                        vy = 0;
+                        isGrounded = true; 
+                    }
+
+                    // --- PERGERAKAN ---
+                    const cameraDirection = new THREE.Vector3();
+                    camera.getWorldDirection(cameraDirection);
+                    cameraDirection.y = 0; 
+                    cameraDirection.normalize();
+
+                    const cameraRight = new THREE.Vector3();
+                    cameraRight.crossVectors(cameraDirection, camera.up).normalize();
+
+                    const moveDirection = new THREE.Vector3()
+                        .addScaledVector(cameraRight, input.x)
+                        .addScaledVector(cameraDirection, -input.z);
+
+                    const isWalking = moveDirection.length() > 0;
+
+                    if (isWalking) {
+                        moveDirection.normalize();
+                        
+                        let newX = playerGroup.position.x + moveDirection.x * kecepatan;
+                        let newZ = playerGroup.position.z + moveDirection.z * kecepatan;
+
+                        if (newX > 19) newX = 19; if (newX < -19) newX = -19;
+                        if (newZ > 19) newZ = 19; if (newZ < -19) newZ = -19;
+
+                        // Batasan Rumah
+                        if (newX < -6.0 && newX > -12.0 && newZ < 6.5 && newZ > -4.5) {
+                            newX = playerGroup.position.x;
+                            newZ = playerGroup.position.z;
+                        }
+
+                        playerGroup.position.x = newX;
+                        playerGroup.position.z = newZ;
+
+                        const targetAngle = Math.atan2(moveDirection.x, moveDirection.z);
+                        playerGroup.rotation.y = targetAngle;
+
+                        // 🏃 ANIMASI JALAN
+                        if (isGrounded) {
+                            clockTime += 0.25; 
+                            pivotKakiKiri.rotation.x = Math.sin(clockTime) * 0.6;
+                            pivotKakiKanan.rotation.x = -Math.sin(clockTime) * 0.6;
+                            pivotTanganKiri.rotation.x = -Math.sin(clockTime) * 0.5;
+                            pivotTanganKanan.rotation.x = Math.sin(clockTime) * 0.5;
+
+                            badan.position.y = 1.15 + Math.abs(Math.sin(clockTime)) * 0.04;
+                            kepala.position.y = 1.75 + Math.abs(Math.sin(clockTime)) * 0.04;
+                        }
+                    } else {
+                        // 🧍 KONDISI DIAM
+                        if (isGrounded) {
+                            pivotKakiKiri.rotation.x = 0; pivotKakiKanan.rotation.x = 0;
+                            pivotTanganKiri.rotation.x = 0; pivotTanganKanan.rotation.x = 0;
+                            pivotTanganKiri.rotation.z = 0; pivotTanganKanan.rotation.z = 0;
+                            badan.position.y = 1.15; kepala.position.y = 1.75;
+                        }
+                    }
+
+                    // 🦘 ANIMASI MELOMPAT
+                    if (!isGrounded) {
+                        pivotKakiKiri.rotation.x = -0.2;
+                        pivotKakiKanan.rotation.x = 0.3;
+                        pivotTanganKiri.rotation.x = -0.5;
+                        pivotTanganKanan.rotation.x = -0.5;
+                        pivotTanganKiri.rotation.z = -0.2;
+                        pivotTanganKanan.rotation.z = 0.2;
+                    }
+
+                    const offset = new THREE.Vector3().subVectors(camera.position, controls.target);
+                    controls.target.copy(playerGroup.position);
+                    camera.position.copy(playerGroup.position).add(offset);
+                }
+
+                // 🌟 ANIMASI EMOJI MEMBAL (Membuat emoji sedikit naik turun melayang tipis di udara)
+                const waktuMelt = Date.now() * 0.004;
+                listSampah.forEach((s, index) => {
+                    s.position.y = 0.35 + Math.sin(waktuMelt + index) * 0.06;
+                });
+
+                controls.update();
+                renderer.render(scene, camera);
+            }
+            gameLoop();
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        };
+    </script>
 </body>
 </html>
+
