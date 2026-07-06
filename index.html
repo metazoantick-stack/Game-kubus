@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Eco-Cleaner 3D - Perbaikan Total</title>
+    <title>Eco-Cleaner 3D - Fixed Camera</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: sans-serif; background-color: #000; user-select: none; }
         #ui { position: absolute; top: 10px; left: 10px; color: white; background: rgba(0,0,0,0.7); padding: 12px; border-radius: 8px; pointer-events: none; font-size: 14px; z-index: 10; }
@@ -32,7 +32,7 @@
     
     <div id="overlay">
         <h1>Eco-Cleaner 3D</h1>
-        <p>Gunakan Joystick untuk berjalan.<br>Karakter berwajah, berkaki panjang, bertangan, & sampah emoji siap dimainkan!</p>
+        <p>Gunakan Joystick untuk berjalan.<br>Geser layar kosong untuk memutar kamera!</p>
         <button class="start" id="start-btn" onclick="mulaiGame()">Mulai Game</button>
     </div>
 
@@ -45,7 +45,8 @@
         document.body.appendChild(renderer.domElement);
 
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true; controls.dampingFactor = 0.05; controls.maxPolarAngle = Math.PI / 2 - 0.05;
+        controls.enableDamping = true; controls.dampingFactor = 0.05; 
+        controls.maxPolarAngle = Math.PI / 2 - 0.05; controls.minDistance = 5; controls.maxDistance = 15;
 
         // --- 2. LIGHTING ---
         scene.add(new THREE.AmbientLight(0xffffff, 0.7));
@@ -60,7 +61,6 @@
         const roof = new THREE.Mesh(new THREE.ConeGeometry(4.5, 2.5, 4), new THREE.MeshStandardMaterial({ color: 0x3d281d }));
         roof.position.set(-9, 7.25, 1); roof.rotation.y = Math.PI / 4; scene.add(roof);
 
-        // Fungsi Pembuat Pohon Besar Batang Coklat
         function buatPohon(x, z, jenis) {
             const grup = new THREE.Group(); const warnaKayuCoklat = 0x5c4033; 
             if (jenis === 'kelapa') {
@@ -84,7 +84,7 @@
             if (!(rx < -5 && rx > -13 && rz < 7 && rz > -5)) buatPohon(rx, rz, 'biasa');
         }
 
-        // --- 4. MODEL KARAKTER (WAJAH + KAKI PANJANG + TANGAN) ---
+        // --- 4. MODEL KARAKTER ---
         const playerGroup = new THREE.Group();
         const pivotKakiKiri = new THREE.Group(); pivotKakiKiri.position.set(-0.16, 0.7, 0);
         const pivotKakiKanan = new THREE.Group(); pivotKakiKanan.position.set(0.16, 0.7, 0);
@@ -94,7 +94,6 @@
         const badan = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.9, 8), new THREE.MeshStandardMaterial({ color: 0x0055ff }));
         badan.position.y = 1.15; playerGroup.add(badan);
         
-        // Detail Wajah Kepala
         const kepala = new THREE.Mesh(new THREE.SphereGeometry(0.26, 16, 16), new THREE.MeshStandardMaterial({ color: 0xffffff }));
         kepala.position.y = 1.75; playerGroup.add(kepala);
         const mataKiri = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), new THREE.MeshBasicMaterial({ color: 0 }));
@@ -104,7 +103,6 @@
         const mulut = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.015, 8, 12, Math.PI), new THREE.MeshBasicMaterial({ color: 0xff4444 }));
         mulut.rotation.set(Math.PI, 0, Math.PI); mulut.position.set(0, 1.70, 0.23); playerGroup.add(mulut);
 
-        // Kaki & Tangan Panjang
         const kakiGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.7, 6); const kakiMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
         const meshKakiKiri = new THREE.Mesh(kakiGeo, kakiMat); meshKakiKiri.position.y = -0.35; pivotKakiKiri.add(meshKakiKiri); playerGroup.add(pivotKakiKiri);
         const meshKakiKanan = new THREE.Mesh(kakiGeo, kakiMat); meshKakiKanan.position.y = -0.35; pivotKakiKanan.add(meshKakiKanan); playerGroup.add(pivotKakiKanan);
@@ -114,7 +112,9 @@
         const meshTanganKanan = new THREE.Mesh(tanganGeo, tanganMat); meshTanganKanan.position.y = -0.3; pivotTanganKanan.add(meshTanganKanan); playerGroup.add(pivotTanganKanan);
         
         playerGroup.position.set(0, 0, 4); scene.add(playerGroup);
-        camera.position.set(0, 6, 12); controls.target.copy(playerGroup.position);
+        
+        camera.position.set(0, 5, 10);
+        controls.target.copy(playerGroup.position);
 
         // --- 5. LOGIKA GAME & SAMPAH EMOJI ---
         let score = 0; let timeLeft = 30; let isGameRunning = false; let timerInterval; const listSampah = [];
@@ -152,7 +152,7 @@
             }, 1000);
         };
 
-        // --- 6. LOGIKA JOYSTICK & GERAK PHYSICS ---
+        // --- 6. LOGIKA JOYSTICK & PHYSICS ---
         const input = { x: 0, z: 0 }; let vy = 0; let isGrounded = true;   
         const gravitasi = -0.012; const kekuatanLompat = 0.24; const kecepatan = 0.08;
 
@@ -169,9 +169,9 @@
             input.x = touchX / 45; input.z = touchY / 45;
         }
 
-        joyContainer.addEventListener('touchstart', (e) => { joyActive = true; controls.enabled = false; handleJoystick(e); }, {passive: false});
+        joyContainer.addEventListener('touchstart', (e) => { joyActive = true; handleJoystick(e); }, {passive: false});
         window.addEventListener('touchmove', handleJoystick, {passive: false});
-        window.addEventListener('touchend', () => { if(joyActive){ joyActive = false; controls.enabled = true; joyHandle.style.transform = 'translate(0px, 0px)'; input.x = 0; input.z = 0; } });
+        window.addEventListener('touchend', () => { if(joyActive){ joyActive = false; joyHandle.style.transform = 'translate(0px, 0px)'; input.x = 0; input.z = 0; } });
 
         function picuLompat() { if (isGrounded && isGameRunning) { vy = kekuatanLompat; isGrounded = false; } }
         document.getElementById('jump-btn').addEventListener('touchstart', (e) => { e.stopPropagation(); picuLompat(); });
@@ -191,18 +191,16 @@
                 score++; document.getElementById('score').innerText = score; setTimeout(spawnSampah, 500);
             }
         }
-        renderer.domElement.addEventListener('click', clickToClean); renderer.domElement.addEventListener('touchend', clickToClean);
+        renderer.domElement.addEventListener('touchstart', clickToClean);
 
         // --- 8. LOOP UTAMA GAMEPLAY ---
         let clockTime = 0; 
         function gameLoop() {
             requestAnimationFrame(gameLoop);
             if (isGameRunning) {
-                // Gravitasi Lompat
                 vy += gravitasi; playerGroup.position.y += vy;
                 if (playerGroup.position.y <= 0) { playerGroup.position.y = 0; vy = 0; isGrounded = true; }
 
-                // Kalkulasi Arah Kamera
                 const cameraDirection = new THREE.Vector3(); camera.getWorldDirection(cameraDirection); cameraDirection.y = 0; cameraDirection.normalize();
                 const cameraRight = new THREE.Vector3().crossVectors(cameraDirection, camera.up).normalize();
                 const moveDirection = new THREE.Vector3().addScaledVector(cameraRight, input.x).addScaledVector(cameraDirection, -input.z);
@@ -210,11 +208,14 @@
                 if (moveDirection.length() > 0) {
                     moveDirection.normalize();
                     let newX = playerGroup.position.x + moveDirection.x * kecepatan; let newZ = playerGroup.position.z + moveDirection.z * kecepatan;
+                    
                     if (newX > 19) newX = 19; if (newX < -19) newX = -19; if (newZ > 19) newZ = 19; if (newZ < -19) newZ = -19;
-                    if (!(newX < -6.0 && newX > -12.0 && newZ < 6.5 && newZ > -4.5)) { playerGroup.position.x = newX; playerGroup.position.z = newZ; }
+                    if (!(newX < -6.0 && newX > -12.0 && newZ < 6.5 && newZ > -4.5)) { 
+                        playerGroup.position.x = newX; 
+                        playerGroup.position.z = newZ; 
+                    }
                     playerGroup.rotation.y = Math.atan2(moveDirection.x, moveDirection.z);
 
-                    // Animasi Melangkah
                     if (isGrounded) {
                         clockTime += 0.25; 
                         pivotKakiKiri.rotation.x = Math.sin(clockTime) * 0.6; pivotKakiKanan.rotation.x = -Math.sin(clockTime) * 0.6;
@@ -224,25 +225,25 @@
                     pivotKakiKiri.rotation.x = 0; pivotKakiKanan.rotation.x = 0; pivotTanganKiri.rotation.x = 0; pivotTanganKanan.rotation.x = 0;
                 }
                 
-                // Animasi di Udara
                 if (!isGrounded) {
                     pivotKakiKiri.rotation.x = -0.2; pivotKakiKanan.rotation.x = 0.3;
                     pivotTanganKiri.rotation.x = -0.5; pivotTanganKanan.rotation.x = -0.5;
                     pivotTanganKiri.rotation.z = -0.2; pivotTanganKanan.rotation.z = 0.2;
                 }
 
-                // Kamera Mengikuti Pemain
-                const offset = new THREE.Vector3().subVectors(camera.position, controls.target);
-                controls.target.copy(playerGroup.position); camera.position.copy(playerGroup.position).add(offset);
+                // Kamera mengikuti pemain secara dinamis (Orbit Bebas)
+                const targetCam = new THREE.Vector3().copy(playerGroup.position);
+                const camDiff = new THREE.Vector3().subVectors(controls.target, targetCam);
+                camera.position.sub(camDiff);
+                controls.target.copy(targetCam);
             }
 
-            // Animasi Mengambang Lembut Emoji
             listSampah.forEach((s, i) => { s.position.y = 0.35 + Math.sin((Date.now() * 0.004) + i) * 0.06; });
-            controls.update(); renderer.render(scene, camera);
+            controls.update(); 
+            renderer.render(scene, camera);
         }
         gameLoop();
         window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
     </script>
 </body>
 </html>
-
