@@ -91,15 +91,17 @@ function update(){
             player.y<obstacles[i].y+obstacles[i].h &&
             player.y+player.h>obstacles[i].y
         ){
-            alert("Game Over!\nScore: "+score);
-            location.reload();
+            score = 0;
+            player.y = 220;
+            player.vy = 0;
+            player.jump = false;
+            obstacles = [];
         }
     }
 
     obstacles=obstacles.filter(o=>o.x>-30);
     score++;
 }
-
 function draw(){
     ctx.clearRect(0,0,800,300);
 
